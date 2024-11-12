@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Text Sharing</title>
+    <script>
+        // Function to fetch and display the latest shared text
+        async function fetchText() {
+            const response = await fetch('/fetch');
+            const data = await response.json();
+            document.getElementById('sharedText').value = data.text;
+        }
+
+        // Function to update the shared text
+        async function updateText() {
+            const text = document.getElementById('sharedText').value;
+            await fetch('/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            });
+        }
+
+        // Set up real-time fetching every 2 seconds
+        setInterval(fetchText, 2000);
+
+        // Initial fetch to populate the text area
+        window.onload = fetchText;
+    </script>
+</head>
+<body>
+    <h1>Real-Time Text Sharing</h1>
+    <textarea id="sharedText" rows="10" cols="50" oninput="updateText()"></textarea>
+    <p>Type in the box above, and the text will automatically sync in real-time.</p>
+</body>
+</html>
