@@ -3,74 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-Time Text Sharing - Exclusive to Shrey</title>
+    <title>Real-Time Text Sharing</title>
     <style>
-        /* General Styles */
         body {
             font-family: Arial, sans-serif;
             text-align: center;
-            background-color: #f0f2f5;
+            background-color: #f7f7f7;
         }
-        h1 {
-            color: #333;
-        }
-        p {
-            font-size: 14px;
-            color: #666;
-        }
-
-        /* Chat Window Styles */
-        .chat-container {
-            display: inline-block;
-            width: 80%;
-            max-width: 600px;
-            background-color: #ffffff;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        .container {
+            width: 50%;
+            margin: auto;
             margin-top: 20px;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
         }
-        #sharedText {
+        textarea {
             width: 100%;
-            height: 300px;
-            border: 1px solid #ccc;
-            border-radius: 10px;
+            height: 200px;
+            font-size: 16px;
             padding: 10px;
-            resize: none;
-            font-size: 16px;
-            font-family: 'Courier New', Courier, monospace;
-            line-height: 1.5;
-            background-color: #f9f9f9;
+            margin-top: 10px;
         }
-
-        /* Font Size Control */
-        .font-size-control {
-            margin-top: 15px;
-        }
-
-        /* Send Button */
-        .send-button {
-            display: block;
-            margin: 15px auto;
+        button {
+            margin-top: 10px;
             padding: 10px 20px;
-            border: none;
-            background-color: #007bff;
-            color: white;
             font-size: 16px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .send-button:hover {
-            background-color: #0056b3;
         }
     </style>
-
     <script>
+        let lastFetchedText = ""; // Store the last fetched text for comparison
+
         // Function to fetch and display the latest shared text
         async function fetchText() {
             const response = await fetch('/fetch');
             const data = await response.json();
-            document.getElementById('sharedText').value = data.text;
+            
+            // Update the text area only if the fetched text is different from what's currently displayed
+            const textArea = document.getElementById('sharedText');
+            if (data.text !== textArea.value && data.text !== lastFetchedText) {
+                textArea.value = data.text;
+                lastFetchedText = data.text;
+            }
         }
 
         // Function to update the shared text
@@ -83,31 +58,18 @@
             });
         }
 
-        // Font Size Adjustment
-        function adjustFontSize() {
-            const fontSize = document.getElementById('fontSize').value;
-            document.getElementById('sharedText').style.fontSize = fontSize + 'px';
-        }
+        // Set up real-time fetching every 2 seconds
+        setInterval(fetchText, 2000);
 
-        // Initial fetch to populate the text area and set interval
-        window.onload = () => {
-            fetchText();
-            setInterval(fetchText, 1000);
-        };
+        // Initial fetch to populate the text area
+        window.onload = fetchText;
     </script>
 </head>
 <body>
-    <h1>Real-Time Text Sharing - Exclusive to Shrey</h1>
-    <p>Type in the box below, then click "Send" to update the text. The text will sync automatically in real-time.</p>
-
-    <div class="chat-container">
-        <textarea id="sharedText" placeholder="Type your message here..."></textarea>
-        <button class="send-button" onclick="updateText()">Send</button>
-        
-        <div class="font-size-control">
-            <label for="fontSize">Font Size:</label>
-            <input type="range" id="fontSize" min="12" max="24" value="16" oninput="adjustFontSize()">
-        </div>
+    <div class="container">
+        <h1>Real-Time Text Sharing</h1>
+        <textarea id="sharedText" oninput="updateText()"></textarea>
+        <p>Type in the box above, and the text will automatically sync in real-time.</p>
     </div>
 </body>
 </html>
