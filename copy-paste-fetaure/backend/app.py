@@ -5,7 +5,7 @@ app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Replace with a secure random key
 
 # Set the authentication password
-AUTH_PASSWORD = "Hanuman@8871373760"
+AUTH_PASSWORD = "simple_use_case_hai_bhai_chatgpt_will_help"
 
 # In-memory store for the text
 shared_text = {"text": ""}
