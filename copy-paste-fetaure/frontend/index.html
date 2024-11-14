@@ -5,18 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-Time Text Sharing</title>
     <script>
+        let lastFetchedText = "";
+
         // Function to fetch and display the latest shared text
         async function fetchText() {
             try {
                 const response = await fetch('/fetch');
                 const data = await response.json();
-                document.getElementById('sharedText').value = data.text;
+                const textArea = document.getElementById('sharedText');
+
+                // Only update if the fetched text is different from the last fetched text
+                if (data.text !== lastFetchedText) {
+                    textArea.value = data.text;
+                    lastFetchedText = data.text;
+                }
             } catch (error) {
-                console.error('Error fetching text:', error);
+                console.error("Error fetching text:", error);
             }
         }
 
-        // Function to update the shared text
+        // Function to update the shared text (called when "Send" button is clicked)
         async function updateText() {
             const text = document.getElementById('sharedText').value;
             try {
@@ -25,13 +33,14 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: text })
                 });
+                lastFetchedText = text; // Update lastFetchedText to prevent redundant updates
             } catch (error) {
-                console.error('Error updating text:', error);
+                console.error("Error updating text:", error);
             }
         }
 
-        // Set up real-time fetching every 2 seconds
-        setInterval(fetchText, 2000);
+        // Set up real-time fetching with a shorter interval
+        setInterval(fetchText, 500); // Polling interval of 0.5 seconds
 
         // Initial fetch to populate the text area
         window.onload = fetchText;
@@ -39,7 +48,9 @@
 </head>
 <body>
     <h1>Real-Time Text Sharing</h1>
-    <textarea id="sharedText" rows="10" cols="50" oninput="updateText()"></textarea>
-    <p>Type in the box above, and the text will automatically sync in real-time.</p>
+    <textarea id="sharedText" rows="10" cols="50"></textarea>
+    <br>
+    <button onclick="updateText()">Send</button>
+    <p>Type in the box above, then click "Send" to update the text. The text will sync automatically in real-time.</p>
 </body>
 </html>
