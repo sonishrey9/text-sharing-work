@@ -7,19 +7,27 @@
     <script>
         // Function to fetch and display the latest shared text
         async function fetchText() {
-            const response = await fetch('/fetch');
-            const data = await response.json();
-            document.getElementById('sharedText').value = data.text;
+            try {
+                const response = await fetch('/fetch');
+                const data = await response.json();
+                document.getElementById('sharedText').value = data.text;
+            } catch (error) {
+                console.error('Error fetching text:', error);
+            }
         }
 
         // Function to update the shared text
         async function updateText() {
             const text = document.getElementById('sharedText').value;
-            await fetch('/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: text })
-            });
+            try {
+                await fetch('/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+            } catch (error) {
+                console.error('Error updating text:', error);
+            }
         }
 
         // Set up real-time fetching every 2 seconds
