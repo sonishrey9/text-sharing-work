@@ -3,54 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-Time Text Sharing</title>
-    <script>
-        let lastFetchedText = "";
+    <title>Real-Time Text Sharing - Exclusive to Shrey</title>
+    <style>
+        /* General Styles */
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f0f2f5;
+        }
+        h1 {
+            color: #333;
+        }
+        p {
+            font-size: 14px;
+            color: #666;
+        }
 
+        /* Chat Window Styles */
+        .chat-container {
+            display: inline-block;
+            width: 80%;
+            max-width: 600px;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            margin-top: 20px;
+        }
+        #sharedText {
+            width: 100%;
+            height: 300px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            padding: 10px;
+            resize: none;
+            font-size: 16px;
+            font-family: 'Courier New', Courier, monospace;
+            line-height: 1.5;
+            background-color: #f9f9f9;
+        }
+
+        /* Font Size Control */
+        .font-size-control {
+            margin-top: 15px;
+        }
+
+        /* Send Button */
+        .send-button {
+            display: block;
+            margin: 15px auto;
+            padding: 10px 20px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .send-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+
+    <script>
         // Function to fetch and display the latest shared text
         async function fetchText() {
-            try {
-                const response = await fetch('/fetch');
-                const data = await response.json();
-                const textArea = document.getElementById('sharedText');
-
-                // Only update if the fetched text is different from the last fetched text
-                if (data.text !== lastFetchedText) {
-                    textArea.value = data.text;
-                    lastFetchedText = data.text;
-                }
-            } catch (error) {
-                console.error("Error fetching text:", error);
-            }
+            const response = await fetch('/fetch');
+            const data = await response.json();
+            document.getElementById('sharedText').value = data.text;
         }
 
-        // Function to update the shared text (called when "Send" button is clicked)
+        // Function to update the shared text
         async function updateText() {
             const text = document.getElementById('sharedText').value;
-            try {
-                await fetch('/update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: text })
-                });
-                lastFetchedText = text; // Update lastFetchedText to prevent redundant updates
-            } catch (error) {
-                console.error("Error updating text:", error);
-            }
+            await fetch('/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            });
         }
 
-        // Set up real-time fetching with a shorter interval
-        setInterval(fetchText, 500); // Polling interval of 0.5 seconds
+        // Font Size Adjustment
+        function adjustFontSize() {
+            const fontSize = document.getElementById('fontSize').value;
+            document.getElementById('sharedText').style.fontSize = fontSize + 'px';
+        }
 
-        // Initial fetch to populate the text area
-        window.onload = fetchText;
+        // Initial fetch to populate the text area and set interval
+        window.onload = () => {
+            fetchText();
+            setInterval(fetchText, 1000);
+        };
     </script>
 </head>
 <body>
-    <h1>Real-Time Text Sharing</h1>
-    <textarea id="sharedText" rows="10" cols="50"></textarea>
-    <br>
-    <button onclick="updateText()">Send</button>
-    <p>Type in the box above, then click "Send" to update the text. The text will sync automatically in real-time.</p>
+    <h1>Real-Time Text Sharing - Exclusive to Shrey</h1>
+    <p>Type in the box below, then click "Send" to update the text. The text will sync automatically in real-time.</p>
+
+    <div class="chat-container">
+        <textarea id="sharedText" placeholder="Type your message here..."></textarea>
+        <button class="send-button" onclick="updateText()">Send</button>
+        
+        <div class="font-size-control">
+            <label for="fontSize">Font Size:</label>
+            <input type="range" id="fontSize" min="12" max="24" value="16" oninput="adjustFontSize()">
+        </div>
+    </div>
 </body>
 </html>
