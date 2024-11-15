@@ -7,101 +7,60 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f0f2f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
+            text-align: center;
+            background-color: #f4f4f9;
         }
-        .container {
+        #container {
             width: 60%;
-            max-width: 800px;
-            background-color: #fff;
-            box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-            overflow: hidden;
-            transition: all 0.3s ease;
-        }
-        .header {
-            background-color: #4a90e2;
-            color: #fff;
-            padding: 15px;
-            font-size: 24px;
-            font-weight: bold;
-            text-align: center;
-            position: relative;
-        }
-        .header button {
-            position: absolute;
-            right: 10px;
-            top: 10px;
-            padding: 5px 10px;
-            font-size: 16px;
-            background: #fff;
-            border: none;
-            cursor: pointer;
-            color: #4a90e2;
-            border-radius: 4px;
-        }
-        .content {
+            margin: auto;
+            background: white;
             padding: 20px;
-            text-align: center;
+            border-radius: 8px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
         }
-        textarea {
+        #sharedText {
             width: 100%;
             height: 200px;
+            resize: both;
             padding: 10px;
-            resize: vertical; /* Allow resizing only vertically */
-            font-size: 18px;
-            box-sizing: border-box;
-        }
-        .font-controls {
-            margin-top: 10px;
-        }
-        .font-controls button {
-            padding: 10px 20px;
             font-size: 16px;
-            cursor: pointer;
-            margin: 0 5px;
-            border: none;
-            background-color: #4a90e2;
-            color: #fff;
-            border-radius: 4px;
+            margin-bottom: 10px;
         }
-        .send-button {
+        #imagePreview {
             margin-top: 10px;
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            border: none;
-            background-color: #4a90e2;
-            color: #fff;
-            border-radius: 4px;
+            max-width: 100%;
         }
-        .instructions {
-            color: #888;
-            margin-top: 10px;
+        #fileList {
+            list-style: none;
+            padding: 0;
         }
     </style>
     <script>
-        let currentText = "";
-        let userText = "";
-        let fontSize = 18;
-        let isMinimized = false;
-
-        // Function to fetch and display the latest shared text
-        async function fetchText() {
+        async function fetchContent() {
             const response = await fetch('/fetch');
             const data = await response.json();
-            if (userText === "") {
-                // Only update if the user has not typed anything new
-                document.getElementById('sharedText').value = data.text;
-                currentText = data.text;
-            }
+            document.getElementById('sharedText').value = data.text;
+
+            const imagePreview = document.getElementById('imagePreview');
+            imagePreview.innerHTML = '';
+            data.images.forEach(img => {
+                const imgElement = document.createElement('img');
+                imgElement.src = `/uploads/${img}`;
+                imgElement.style = "max-width: 100%; margin-top: 10px;";
+                imagePreview.appendChild(imgElement);
+            });
+
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = '';
+            data.files.forEach(file => {
+                const fileLink = document.createElement('a');
+                fileLink.href = `/uploads/${file}`;
+                fileLink.innerText = file;
+                fileLink.target = "_blank";
+                fileList.appendChild(document.createElement('li')).appendChild(fileLink);
+            });
         }
 
-        // Function to update the shared text when the "Send" button is clicked
         async function updateText() {
             const text = document.getElementById('sharedText').value;
             await fetch('/update', {
@@ -109,56 +68,60 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: text })
             });
-            currentText = text; // Update the current text to avoid overwrite
-            userText = ""; // Reset user input tracking
+            fetchContent();
         }
 
-        // Event listener to track changes in the text area
-        function trackUserInput() {
-            userText = document.getElementById('sharedText').value;
+        async function uploadImage(imageData) {
+            const formData = new FormData();
+            formData.append('image', imageData);
+            await fetch('/upload_image', {
+                method: 'POST',
+                body: formData
+            });
+            fetchContent();
         }
 
-        // Font size adjustment function
-        function adjustFontSize(increase) {
-            fontSize += increase ? 2 : -2;
-            document.getElementById('sharedText').style.fontSize = fontSize + "px";
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            await fetch('/upload_file', {
+                method: 'POST',
+                body: formData
+            });
+            fetchContent();
         }
 
-        // Toggle minimize/maximize chat window
-        function toggleMinimize() {
-            const container = document.querySelector('.container');
-            if (isMinimized) {
-                container.style.height = "auto";
-                document.getElementById('minimizeButton').textContent = "Minimize";
-            } else {
-                container.style.height = "60px";
-                document.getElementById('minimizeButton').textContent = "Maximize";
+        document.addEventListener('paste', (event) => {
+            const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+            for (let index in items) {
+                const item = items[index];
+                if (item.kind === 'file' && item.type.includes("image")) {
+                    const blob = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        uploadImage(event.target.result);
+                    };
+                    reader.readAsDataURL(blob);
+                }
             }
-            isMinimized = !isMinimized;
-        }
+        });
 
-        // Periodic fetch to sync with other clients
-        setInterval(fetchText, 1000);
-
-        // Initial fetch to populate the text area
-        window.onload = fetchText;
+        window.onload = fetchContent;
     </script>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            Exclusive Real-Time Text Sharing for Shrey
-            <button id="minimizeButton" onclick="toggleMinimize()">Minimize</button>
+    <div id="container">
+        <h1>Exclusive Real-Time Text Sharing for Shrey</h1>
+        <textarea id="sharedText" placeholder="Type here..."></textarea>
+        <button onclick="updateText()">Send</button>
+        <div>
+            <input type="file" id="fileInput">
+            <button onclick="uploadFile()">Upload File</button>
         </div>
-        <div class="content">
-            <div class="font-controls">
-                <button onclick="adjustFontSize(true)">A+</button>
-                <button onclick="adjustFontSize(false)">A-</button>
-            </div>
-            <textarea id="sharedText" oninput="trackUserInput()"></textarea>
-            <button class="send-button" onclick="updateText()">Send</button>
-            <p class="instructions">Type in the box above, then click "Send" to update the text. Changes will sync automatically across all open pages in real-time.</p>
-        </div>
+        <div id="imagePreview"></div>
+        <ul id="fileList"></ul>
+        <p>Type in the box above, click "Send" to update the text. Copy-paste screenshots directly, and share files.</p>
     </div>
 </body>
 </html>
