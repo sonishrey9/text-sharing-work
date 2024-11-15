@@ -7,7 +7,7 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f0f2f5;
+            background-color: #f3f4f6;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -15,115 +15,127 @@
             margin: 0;
         }
         .container {
-            width: 80%;
+            width: 90%;
             max-width: 800px;
-            background: white;
+            background-color: white;
             padding: 20px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
-        h1 {
+        .header {
+            font-size: 24px;
+            font-weight: bold;
             text-align: center;
-            color: #333;
+            margin-bottom: 10px;
+            color: #007bff;
         }
-        #chat-box {
+        #sharedText {
             width: 100%;
-            height: 300px;
+            height: 200px;
             resize: both;
             overflow: auto;
-            border: 1px solid #ddd;
             padding: 10px;
-            margin-bottom: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
         }
-        .control-panel {
+        .buttons {
             display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-bottom: 20px;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
         }
-        button {
-            padding: 10px;
-            font-size: 14px;
+        .buttons button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
             cursor: pointer;
+            background-color: #007bff;
+            color: white;
         }
-        .modal {
+        .buttons button:hover {
+            background-color: #0056b3;
+        }
+        .file-upload {
             display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 20px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
-            border-radius: 5px;
+            flex-direction: column;
+            align-items: center;
         }
-        .modal input[type="file"] {
+        .file-upload input[type="file"] {
             margin-top: 10px;
         }
     </style>
     <script>
+        let fontSize = 16;
+
         async function fetchText() {
             const response = await fetch('/fetch');
             const data = await response.json();
-            document.getElementById('chat-box').innerText = data.text;
+            document.getElementById('sharedText').value = data.text;
         }
 
         async function updateText() {
-            const text = document.getElementById('chat-box').innerText;
+            const text = document.getElementById('sharedText').value;
             await fetch('/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text })
+                body: JSON.stringify({ text: text })
             });
+            fetchText();
+        }
+
+        function toggleFileUpload() {
+            const uploadSection = document.getElementById('fileUpload');
+            uploadSection.style.display = uploadSection.style.display === 'none' ? 'flex' : 'none';
         }
 
         async function uploadFile() {
-            const fileInput = document.getElementById('file-upload');
+            const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
+            if (!file) return;
+
             const formData = new FormData();
             formData.append('file', file);
+
             const response = await fetch('/upload', {
                 method: 'POST',
                 body: formData
             });
             const data = await response.json();
             if (data.file_url) {
-                document.getElementById('chat-box').innerText += `\nFile uploaded: ${data.file_url}`;
+                document.getElementById('sharedText').value += `\n${data.file_url}`;
                 updateText();
-                closeModal();
-            } else {
-                alert("File upload failed.");
             }
         }
 
-        function showModal() {
-            document.getElementById('file-modal').style.display = 'block';
+        function increaseFontSize() {
+            fontSize += 2;
+            document.getElementById('sharedText').style.fontSize = fontSize + 'px';
         }
 
-        function closeModal() {
-            document.getElementById('file-modal').style.display = 'none';
+        function decreaseFontSize() {
+            fontSize = Math.max(10, fontSize - 2);
+            document.getElementById('sharedText').style.fontSize = fontSize + 'px';
         }
 
-        window.onload = () => {
-            fetchText();
-        };
+        window.onload = fetchText;
     </script>
 </head>
 <body>
     <div class="container">
-        <h1>Exclusive Real-Time Text Sharing for Shrey</h1>
-        <div id="chat-box" contenteditable="true" oninput="updateText()"></div>
-        <div class="control-panel">
-            <button onclick="showModal()">Upload File</button>
+        <div class="header">Exclusive Real-Time Text Sharing for Shrey</div>
+        <textarea id="sharedText" placeholder="Type your message here..."></textarea>
+        <div class="buttons">
             <button onclick="updateText()">Send</button>
+            <button onclick="toggleFileUpload()">Upload File</button>
+            <button onclick="increaseFontSize()">A+</button>
+            <button onclick="decreaseFontSize()">A-</button>
         </div>
-        <div id="file-modal" class="modal">
-            <h2>Upload File</h2>
-            <input type="file" id="file-upload">
+        <div id="fileUpload" class="file-upload">
+            <input type="file" id="fileInput">
             <button onclick="uploadFile()">Upload</button>
-            <button onclick="closeModal()">Cancel</button>
         </div>
-        <p style="text-align: center; color: #888;">Type in the box above, click "Send" to update the text. Copy-paste screenshots directly, and share files.</p>
     </div>
 </body>
 </html>
