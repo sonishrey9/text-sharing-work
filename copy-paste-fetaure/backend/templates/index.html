@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Exclusive Real-Time Text Sharing for Shrey</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Text Sharing for Shrey</title>
     <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
     <style>
         * {
@@ -111,7 +112,7 @@
 </head>
 <body>
     <div class="container" id="container">
-        <div class="header">Exclusive Real-Time Text Sharing for Shrey</div>
+        <div class="header">Real-Time Text Sharing for Shrey</div>
 
         <div class="controls">
             <div class="font-buttons">
@@ -182,7 +183,7 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.file_url) {
-                        socket.emit('file_uploaded', { file_url: data.file_url, file_name: file.name, file_type: file.type });
+                        socket.emit('file_uploaded', { file_url: data.file_url, file_name: file.name });
                     } else {
                         alert('File upload failed.');
                     }
@@ -202,20 +203,36 @@
             link.href = data.file_url;
             link.innerText = data.file_name;
             link.target = "_blank";
-            link.download = data.file_name;
             fileItem.appendChild(link);
-
-            // Download button
-            const downloadBtn = document.createElement('button');
-            downloadBtn.innerText = 'Download';
-            downloadBtn.className = 'downloadButton';
-            downloadBtn.onclick = () => {
-                window.open(data.file_url, '_blank');
-            };
-            fileItem.appendChild(downloadBtn);
 
             uploadedFilesDiv.appendChild(fileItem);
             uploadedFilesDiv.scrollTop = uploadedFilesDiv.scrollHeight;
+        });
+
+        // Paste image directly into the textarea
+        document.getElementById('sharedText').addEventListener('paste', (event) => {
+            const items = event.clipboardData.items;
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    fetch('/upload', {
+                        method: 'POST',
+                        body: formData,
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.file_url) {
+                            socket.emit('file_uploaded', { file_url: data.file_url, file_name: file.name });
+                        } else {
+                            alert('Image upload failed.');
+                        }
+                    })
+                    .catch(error => console.error('Error:', error));
+                }
+            }
         });
     </script>
 </body>
