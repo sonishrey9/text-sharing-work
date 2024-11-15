@@ -10,7 +10,7 @@ AUTH_PASSWORD = "simple_use_case_hai_bhai_chatgpt_will_help"
 # In-memory store for the text
 shared_text = {"text": ""}
 
-# Ensure uploads directory exists
+# Directory to save uploaded files
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -61,15 +61,16 @@ def fetch_text():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    """Endpoint for uploading files"""
+    """Endpoint to upload files"""
     if 'authenticated' not in session:
         return jsonify({"error": "Unauthorized"}), 403
     if 'file' not in request.files:
-        return jsonify({"error": "No file provided"}), 400
+        return jsonify({"error": "No file part"}), 400
     file = request.files['file']
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
-    file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+    file.save(filepath)
     file_url = url_for('uploaded_file', filename=file.filename)
     return jsonify({"file_url": file_url}), 200
 
@@ -79,5 +80,6 @@ def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 if __name__ == "__main__":
+    # Use the dynamic port provided by Heroku or default to 5000 for local testing
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
