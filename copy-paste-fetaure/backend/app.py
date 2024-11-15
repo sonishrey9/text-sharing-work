@@ -1,20 +1,23 @@
-from flask import Flask, render_template, redirect, url_for, session, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_socketio import SocketIO, emit
 import os
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'  # Replace with a secure random key
+app.config['SECRET_KEY'] = 'your_secret_key'  # Replace with a secure random key
 
+# Initialize SocketIO with gevent as async mode
+socketio = SocketIO(app, async_mode="gevent")
+
+# Set the authentication password
 AUTH_PASSWORD = "simple_use_case_hai_bhai_chatgpt_will_help"
 
+# In-memory store for the text
 shared_text = {"text": ""}
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-socketio = SocketIO(app)
 
 @app.route('/')
 def index():
@@ -74,6 +77,7 @@ def handle_fetch_text():
 def handle_file_uploaded(data):
     emit('file_shared', data, broadcast=True)
 
+# Main block to run the app
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     socketio.run(app, host="0.0.0.0", port=port)
