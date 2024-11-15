@@ -7,121 +7,123 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #f4f4f9;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
         }
-        #container {
-            width: 60%;
-            margin: auto;
+        .container {
+            width: 80%;
+            max-width: 800px;
             background: white;
             padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
         }
-        #sharedText {
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        #chat-box {
             width: 100%;
-            height: 200px;
+            height: 300px;
             resize: both;
+            overflow: auto;
+            border: 1px solid #ddd;
             padding: 10px;
-            font-size: 16px;
             margin-bottom: 10px;
         }
-        #imagePreview {
-            margin-top: 10px;
-            max-width: 100%;
+        .control-panel {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
         }
-        #fileList {
-            list-style: none;
-            padding: 0;
+        button {
+            padding: 10px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+        }
+        .modal input[type="file"] {
+            margin-top: 10px;
         }
     </style>
     <script>
-        async function fetchContent() {
+        async function fetchText() {
             const response = await fetch('/fetch');
             const data = await response.json();
-            document.getElementById('sharedText').value = data.text;
-
-            const imagePreview = document.getElementById('imagePreview');
-            imagePreview.innerHTML = '';
-            data.images.forEach(img => {
-                const imgElement = document.createElement('img');
-                imgElement.src = `/uploads/${img}`;
-                imgElement.style = "max-width: 100%; margin-top: 10px;";
-                imagePreview.appendChild(imgElement);
-            });
-
-            const fileList = document.getElementById('fileList');
-            fileList.innerHTML = '';
-            data.files.forEach(file => {
-                const fileLink = document.createElement('a');
-                fileLink.href = `/uploads/${file}`;
-                fileLink.innerText = file;
-                fileLink.target = "_blank";
-                fileList.appendChild(document.createElement('li')).appendChild(fileLink);
-            });
+            document.getElementById('chat-box').innerText = data.text;
         }
 
         async function updateText() {
-            const text = document.getElementById('sharedText').value;
+            const text = document.getElementById('chat-box').innerText;
             await fetch('/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: text })
+                body: JSON.stringify({ text })
             });
-            fetchContent();
-        }
-
-        async function uploadImage(imageData) {
-            const formData = new FormData();
-            formData.append('image', imageData);
-            await fetch('/upload_image', {
-                method: 'POST',
-                body: formData
-            });
-            fetchContent();
         }
 
         async function uploadFile() {
-            const fileInput = document.getElementById('fileInput');
+            const fileInput = document.getElementById('file-upload');
+            const file = fileInput.files[0];
             const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
-            await fetch('/upload_file', {
+            formData.append('file', file);
+            const response = await fetch('/upload', {
                 method: 'POST',
                 body: formData
             });
-            fetchContent();
+            const data = await response.json();
+            if (data.file_url) {
+                document.getElementById('chat-box').innerText += `\nFile uploaded: ${data.file_url}`;
+                updateText();
+                closeModal();
+            } else {
+                alert("File upload failed.");
+            }
         }
 
-        document.addEventListener('paste', (event) => {
-            const items = (event.clipboardData || event.originalEvent.clipboardData).items;
-            for (let index in items) {
-                const item = items[index];
-                if (item.kind === 'file' && item.type.includes("image")) {
-                    const blob = item.getAsFile();
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        uploadImage(event.target.result);
-                    };
-                    reader.readAsDataURL(blob);
-                }
-            }
-        });
+        function showModal() {
+            document.getElementById('file-modal').style.display = 'block';
+        }
 
-        window.onload = fetchContent;
+        function closeModal() {
+            document.getElementById('file-modal').style.display = 'none';
+        }
+
+        window.onload = () => {
+            fetchText();
+        };
     </script>
 </head>
 <body>
-    <div id="container">
+    <div class="container">
         <h1>Exclusive Real-Time Text Sharing for Shrey</h1>
-        <textarea id="sharedText" placeholder="Type here..."></textarea>
-        <button onclick="updateText()">Send</button>
-        <div>
-            <input type="file" id="fileInput">
-            <button onclick="uploadFile()">Upload File</button>
+        <div id="chat-box" contenteditable="true" oninput="updateText()"></div>
+        <div class="control-panel">
+            <button onclick="showModal()">Upload File</button>
+            <button onclick="updateText()">Send</button>
         </div>
-        <div id="imagePreview"></div>
-        <ul id="fileList"></ul>
-        <p>Type in the box above, click "Send" to update the text. Copy-paste screenshots directly, and share files.</p>
+        <div id="file-modal" class="modal">
+            <h2>Upload File</h2>
+            <input type="file" id="file-upload">
+            <button onclick="uploadFile()">Upload</button>
+            <button onclick="closeModal()">Cancel</button>
+        </div>
+        <p style="text-align: center; color: #888;">Type in the box above, click "Send" to update the text. Copy-paste screenshots directly, and share files.</p>
     </div>
 </body>
 </html>
