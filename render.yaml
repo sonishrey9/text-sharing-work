@@ -2,6 +2,7 @@ services:
   - type: web
     name: shrey-text-sharing
     runtime: docker
+    repo: https://github.com/sonishrey9/text-sharing-work
     plan: free
     region: singapore
     branch: main
