@@ -4,7 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-Time Text Sharing for Shrey</title>
-    <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
+    <link rel="icon" href="data:,">
+    <script
+        src="https://cdn.socket.io/4.3.2/socket.io.min.js"
+        integrity="sha384-KAZ4DtjNhLChOB/hxXuKqhMLYvx3b5MlT55xPEiNmREKRzeEm+RVPlTnAn0ajQNs"
+        crossorigin="anonymous"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -121,6 +125,9 @@
             </div>
             <div class="buttons">
                 <button onclick="fitToScreen()">Fit to Screen</button>
+                <form method="post" action="/logout">
+                    <button type="submit">Log out</button>
+                </form>
             </div>
         </div>
 
@@ -144,6 +151,10 @@
         // Listen for text updates from the server
         socket.on('text_update', (text) => {
             document.getElementById('sharedText').value = text;
+        });
+
+        socket.on('share_error', (data) => {
+            alert(data.message);
         });
 
         // Function to send the updated text to the server
@@ -180,12 +191,12 @@
                     method: 'POST',
                     body: formData,
                 })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.file_url) {
-                        socket.emit('file_uploaded', { file_url: data.file_url, file_name: file.name });
+                .then(response => response.json().then(data => ({ ok: response.ok, data })))
+                .then(({ ok, data }) => {
+                    if (ok && data.file_url) {
+                        fileInput.value = '';
                     } else {
-                        alert('File upload failed.');
+                        alert(data.error || 'File upload failed.');
                     }
                 })
                 .catch(error => console.error('Error:', error));
@@ -222,12 +233,12 @@
                         method: 'POST',
                         body: formData,
                     })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.file_url) {
-                            socket.emit('file_uploaded', { file_url: data.file_url, file_name: file.name });
+                    .then(response => response.json().then(data => ({ ok: response.ok, data })))
+                    .then(({ ok, data }) => {
+                        if (ok && data.file_url) {
+                            event.preventDefault();
                         } else {
-                            alert('Image upload failed.');
+                            alert(data.error || 'Image upload failed.');
                         }
                     })
                     .catch(error => console.error('Error:', error));

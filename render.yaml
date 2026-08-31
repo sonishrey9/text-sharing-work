@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: shrey-text-sharing
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    autoDeployTrigger: commit
+    rootDir: copy-paste-fetaure/backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: AUTH_PASSWORD
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_COOKIE_SECURE
+        value: "true"

@@ -1,89 +1,241 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory
-from flask_socketio import SocketIO, emit
+from __future__ import annotations
+
+import hmac
 import os
+import threading
+from collections.abc import Mapping
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+
+from flask import (
+    Flask,
+    Response,
+    abort,
+    current_app,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    session,
+    url_for,
+)
+from flask.typing import ResponseReturnValue
+from flask_socketio import SocketIO, disconnect, emit
 from werkzeug.utils import secure_filename
 
-# Flask app initialization
-app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your_secret_key'  # Replace with a secure random key
+ALLOWED_EXTENSIONS = frozenset({"png", "jpg", "jpeg", "gif", "txt", "pdf", "docx"})
+DEFAULT_MAX_TEXT_LENGTH = 100_000
+DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
-# SocketIO initialization with eventlet
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+socketio = SocketIO(async_mode="threading")
 
-# Authentication password
-AUTH_PASSWORD = "simple_use_case_hai_bhai_chatgpt_will_help"
 
-# Shared text state
-shared_text = {"text": ""}
+def _environment_flag(name: str, *, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
-# File upload configuration
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'txt', 'pdf', 'docx'}
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Helper function to check allowed file types
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+def allowed_file(filename: str) -> bool:
+    """Return whether a filename has one of the explicitly allowed extensions."""
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Routes
-@app.route('/')
-def index():
-    if 'authenticated' in session:
-        return render_template('index.html')
-    return redirect(url_for('login'))
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        password = request.form.get('password')
-        if password == AUTH_PASSWORD:
-            session['authenticated'] = True
-            return redirect(url_for('index'))
-        return "Incorrect password. Please try again.", 401
-    return render_template('login.html')
+def _session_is_current_unlocked() -> bool:
+    return (
+        session.get("authenticated") is True
+        and session.get("auth_generation") == current_app.extensions["auth_generation"]
+    )
 
-@app.route('/logout')
-def logout():
-    session.pop('authenticated', None)
-    return redirect(url_for('login'))
 
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    if 'authenticated' not in session:
-        return jsonify({"error": "Unauthorized"}), 403
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
-    if file and allowed_file(file.filename):
+def _session_is_current() -> bool:
+    with current_app.extensions["state_lock"]:
+        return _session_is_current_unlocked()
+
+
+def create_app(test_config: Mapping[str, Any] | None = None) -> Flask:
+    """Create the text-sharing application from environment-backed configuration."""
+    app = Flask(__name__)
+    app.config.from_mapping(
+        AUTH_PASSWORD=os.environ.get("AUTH_PASSWORD"),
+        MAX_CONTENT_LENGTH=DEFAULT_MAX_UPLOAD_BYTES,
+        MAX_TEXT_LENGTH=DEFAULT_MAX_TEXT_LENGTH,
+        SECRET_KEY=os.environ.get("SECRET_KEY"),
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=_environment_flag("SESSION_COOKIE_SECURE"),
+        UPLOAD_FOLDER=os.environ.get(
+            "UPLOAD_FOLDER", str(Path(app.root_path) / "uploads")
+        ),
+    )
+    if test_config:
+        app.config.update(test_config)
+
+    if not app.config["TESTING"]:
+        if not (app.config["AUTH_PASSWORD"] and app.config["SECRET_KEY"]):
+            raise RuntimeError("AUTH_PASSWORD and SECRET_KEY must be configured.")
+        if len(str(app.config["AUTH_PASSWORD"])) < 16:
+            raise RuntimeError("AUTH_PASSWORD must be at least 16 characters.")
+
+    upload_folder = Path(app.config["UPLOAD_FOLDER"])
+    upload_folder.mkdir(parents=True, exist_ok=True)
+    app.extensions["shared_text"] = {"text": ""}
+    app.extensions["auth_generation"] = 0
+    app.extensions["state_lock"] = threading.Lock()
+    app.extensions["emit_lock"] = threading.Lock()
+
+    socketio.init_app(app, cors_allowed_origins=None)
+
+    @app.after_request
+    def add_security_headers(response: Response) -> Response:
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.socket.io; "
+            "style-src 'self' 'unsafe-inline'; "
+            "connect-src 'self'; "
+            "img-src 'self' data: blob:; "
+            "object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+        )
+        return response
+
+    @app.get("/health")
+    def health() -> ResponseReturnValue:
+        return jsonify({"status": "ok"}), 200
+
+    @app.get("/")
+    def index() -> ResponseReturnValue:
+        if _session_is_current():
+            return render_template("index.html")
+        return redirect(url_for("login"))
+
+    @app.route("/login", methods=["GET", "POST"])
+    def login() -> ResponseReturnValue:
+        if request.method == "POST":
+            supplied_password = request.form.get("password", "")
+            configured_password = str(current_app.config["AUTH_PASSWORD"] or "")
+            if configured_password and hmac.compare_digest(
+                supplied_password, configured_password
+            ):
+                with current_app.extensions["state_lock"]:
+                    session.clear()
+                    session["authenticated"] = True
+                    session["auth_generation"] = current_app.extensions[
+                        "auth_generation"
+                    ]
+                return redirect(url_for("index"))
+            return render_template(
+                "login.html", error="Incorrect password. Please try again."
+            ), 401
+        return render_template("login.html")
+
+    @app.post("/logout")
+    def logout() -> ResponseReturnValue:
+        with current_app.extensions["state_lock"]:
+            if _session_is_current_unlocked():
+                current_app.extensions["auth_generation"] += 1
+            session.clear()
+        return redirect(url_for("login"))
+
+    @app.post("/upload")
+    def upload_file() -> ResponseReturnValue:
+        if not _session_is_current():
+            return jsonify({"error": "Unauthorized"}), 403
+
+        file = request.files.get("file")
+        if file is None:
+            return jsonify({"error": "No file part"}), 400
+        if not file.filename:
+            return jsonify({"error": "No selected file"}), 400
+        if not allowed_file(file.filename):
+            return jsonify({"error": "Invalid file type"}), 400
+
         filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        file_url = url_for('uploaded_file', filename=filename)
-        socketio.emit('file_shared', {"file_url": file_url, "file_name": filename})
-        return jsonify({"file_url": file_url}), 200
-    return jsonify({"error": "Invalid file type"}), 400
+        if not filename:
+            return jsonify({"error": "Invalid filename"}), 400
 
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+        stored_filename = f"{uuid4().hex}{Path(filename).suffix.lower()}"
+        file.save(upload_folder / stored_filename)
+        file_url = url_for(
+            "uploaded_file",
+            stored_filename=stored_filename,
+            download_name=filename,
+        )
+        payload = {"file_url": file_url, "file_name": filename}
+        with current_app.extensions["emit_lock"]:
+            socketio.emit("file_shared", payload)
+        return jsonify(payload), 200
 
-# SocketIO events
-@socketio.on('update_text')
-def handle_update_text(data):
-    shared_text['text'] = data.get('text', "")
-    emit('text_update', shared_text['text'], broadcast=True)
+    @app.get("/uploads/<stored_filename>/<download_name>")
+    def uploaded_file(stored_filename: str, download_name: str) -> ResponseReturnValue:
+        if not _session_is_current():
+            return jsonify({"error": "Unauthorized"}), 403
+        safe_download_name = secure_filename(download_name)
+        if not safe_download_name or not allowed_file(safe_download_name):
+            abort(404)
+        return send_from_directory(
+            upload_folder,
+            stored_filename,
+            as_attachment=True,
+            download_name=safe_download_name,
+        )
 
-@socketio.on('fetch_text')
-def handle_fetch_text():
-    emit('text_update', shared_text['text'])
+    return app
 
-@socketio.on('file_uploaded')
-def handle_file_uploaded(data):
-    emit('file_shared', data, broadcast=True)
 
-# Main block to run the app
+@socketio.on("connect")
+def handle_connect(auth: Mapping[str, Any] | None = None) -> bool | None:
+    del auth
+    if not _session_is_current():
+        return False
+    return None
+
+
+@socketio.on("update_text")
+def handle_update_text(data: Any) -> None:
+    with current_app.extensions["state_lock"]:
+        if not _session_is_current_unlocked():
+            with current_app.extensions["emit_lock"]:
+                disconnect()
+            return
+        if not isinstance(data, dict) or not isinstance(data.get("text"), str):
+            with current_app.extensions["emit_lock"]:
+                emit("share_error", {"message": "Text must be a string."})
+            return
+
+        text = data["text"]
+        if len(text) > int(current_app.config["MAX_TEXT_LENGTH"]):
+            with current_app.extensions["emit_lock"]:
+                emit("share_error", {"message": "Text is too long."})
+            return
+
+        current_app.extensions["shared_text"]["text"] = text
+        with current_app.extensions["emit_lock"]:
+            socketio.emit("text_update", text)
+
+
+@socketio.on("fetch_text")
+def handle_fetch_text() -> None:
+    with current_app.extensions["state_lock"]:
+        if not _session_is_current_unlocked():
+            with current_app.extensions["emit_lock"]:
+                disconnect()
+            return
+        with current_app.extensions["emit_lock"]:
+            socketio.emit(
+                "text_update",
+                current_app.extensions["shared_text"]["text"],
+                to=getattr(request, "sid"),
+            )
+
+
+app = create_app()
+
+
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=5000)
+    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "5000")))

@@ -1,0 +1,11 @@
+.env
+.DS_Store
+._*
+.code-review-graph/
+.playwright-cli/
+**/.venv/
+**/__pycache__/
+**/.coverage
+**/.pytest_cache/
+**/.ruff_cache/
+copy-paste-fetaure/backend/uploads/

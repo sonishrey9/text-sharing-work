@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Real-Time Text Sharing</title>
+    <link rel="icon" href="data:,">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -40,15 +41,21 @@
         button:hover {
             background-color: #0056b3;
         }
+        .error {
+            color: #b42318;
+            margin: 10px 0 0;
+        }
     </style>
 </head>
 <body>
     <div class="login-container">
         <h2>Login</h2>
         <form method="post">
-            <input type="password" name="password" placeholder="Enter Password" required>
+            <input type="hidden" name="username" value="shared" autocomplete="username">
+            <input type="password" name="password" placeholder="Enter Password" autocomplete="current-password" required>
             <button type="submit">Login</button>
         </form>
+        {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
     </div>
 </body>
 </html>
